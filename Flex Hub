@@ -1,4 +1,4 @@
--- Flex Hub | Wind UI MM2 Ultimate Script (V3 Final - All Features)
+-- Flex Hub | MM2 Ultimate Tool (Auto Grab & Teleport Fix + Lobby Tab)
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 -- Servisler
@@ -8,7 +8,6 @@ local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Ayar Değişkenleri
@@ -37,14 +36,14 @@ local MurdererWarned = false
 local Window = WindUI:CreateWindow({
     Title = "Flex Hub | MM2 Ultimate Tool",
     Icon = "shield-alert",
-    Author = "Flex Hub Dev",
+    Author = "https://discord.gg/XPngkQ7qWe",
     Folder = "FlexHubMM2",
     Size = UDim2.fromOffset(620, 560),
     Transparent = true,
     Theme = "Dark",
 })
 
--- --- YARDIMCI FONKSİYONLAR ---
+-- --- GELİŞMİŞ YARDIMCI FONKSİYONLAR ---
 local function GetMurderer()
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
@@ -67,10 +66,36 @@ local function GetSheriff()
     return nil
 end
 
+-- Düzeltilmiş Yerdeki Silah Tespiti (Gun Finder Fix)
 local function GetDroppedGun()
-    for _, obj in pairs(Workspace:GetChildren()) do
-        if obj.Name == "GunDrop" or (obj:IsA("Tool") and obj.Name == "Gun") then
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if (obj.Name == "GunDrop" or obj.Name == "Gun") and (obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("Tool")) then
             return obj
+        end
+    end
+    return nil
+end
+
+local function GetGunCFrame(gunObj)
+    if not gunObj then return nil end
+    if gunObj:IsA("BasePart") then
+        return gunObj.CFrame
+    elseif gunObj:IsA("Model") or gunObj:IsA("Tool") then
+        if gunObj.PrimaryPart then
+            return gunObj.PrimaryPart.CFrame
+        elseif gunObj:FindFirstChild("Handle") then
+            return gunObj.Handle.CFrame
+        elseif gunObj:FindFirstChildOfClass("BasePart") then
+            return gunObj:FindFirstChildOfClass("BasePart").CFrame
+        end
+    end
+    return nil
+end
+
+local function GetActiveMap()
+    for _, child in pairs(Workspace:GetChildren()) do
+        if child:FindFirstChild("Spawns") or child:FindFirstChild("CoinContainer") then
+            return child
         end
     end
     return nil
@@ -102,7 +127,7 @@ local function FlingPlayer(targetPlayer)
     end
 end
 
--- --- NOCLIP DÖNGÜSÜ ---
+-- --- NOCLIP & INFINITE JUMP ---
 RunService.Stepped:Connect(function()
     if (Toggles.Noclip or Toggles.Fly) and LocalPlayer.Character then
         for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
@@ -113,7 +138,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- --- INFINITE JUMP ---
 UserInputService.JumpRequest:Connect(function()
     if Toggles.InfiniteJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
         LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
@@ -252,7 +276,7 @@ end)
 -- --- TAB 2: COMBAT & AIM ---
 local CombatTab = Window:Tab({ Title = "Combat & Aim", Icon = "crosshair" })
 
-CombatTab:Section({ Title = "Şerif Teleport-Kill (Özel Modül)" })
+CombatTab:Section({ Title = "Şerif Teleport-Kill" })
 
 CombatTab:Button({
     Title = "Katile Işınlan -> Vur -> Eski Yerine Dön",
@@ -303,21 +327,15 @@ CombatTab:Toggle({
     Callback = function(state) Toggles.AutoShoot = state end
 })
 
+-- DÜZELTİLMİŞ AUTO GRAB GUN
 CombatTab:Toggle({
     Title = "Düşen Silahı Otomatik Al (Auto Grab)",
-    Desc = "Şerif öldüğünde yere düşen silahı anında kapar.",
+    Desc = "Şerif öldüğünde yerdeki silahı anında kapar.",
     Value = false,
     Callback = function(state) Toggles.AutoGrabGun = state end
 })
 
 CombatTab:Section({ Title = "Katil Modülleri" })
-
-CombatTab:Toggle({
-    Title = "Bıçak Aimbot (Throw Lock)",
-    Desc = "Bıçağı fırlattığında havada en yakındaki oyuncuya yönlendirir.",
-    Value = false,
-    Callback = function(state) Toggles.KnifeAimbot = state end
-})
 
 CombatTab:Toggle({
     Title = "Katil Otomatik Herkesi Öldür (Kill All)",
@@ -360,60 +378,19 @@ CombatTab:Button({
     end
 })
 
--- Auto Teleport-Kill Loop
-task.spawn(function()
-    while true do
-        task.wait(0.3)
-        if Toggles.AutoTeleportKill then
-            local char = LocalPlayer.Character
-            local murd = GetMurderer()
-            if char and char:FindFirstChild("HumanoidRootPart") and murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") then
-                local gun = char:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
-                if gun then
-                    if gun.Parent == LocalPlayer.Backpack then gun.Parent = char end
-                    local hrp = char.HumanoidRootPart
-                    local originalCFrame = hrp.CFrame
-                    
-                    hrp.CFrame = murd.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
-                    task.wait(0.05)
-                    gun:Activate()
-                    task.wait(0.05)
-                    hrp.CFrame = originalCFrame
-                    Toggles.AutoTeleportKill = false
-                    task.wait(1)
-                end
-            end
-        end
-    end
-end)
-
--- Aimbot Loop
-RunService.RenderStepped:Connect(function()
-    local murd = GetMurderer()
-    if murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") then
-        if Toggles.SilentAim then
-            Workspace.CurrentCamera.CFrame = CFrame.new(Workspace.CurrentCamera.CFrame.Position, murd.Character.HumanoidRootPart.Position)
-        end
-        if Toggles.AutoShoot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun") then
-            LocalPlayer.Character.Gun:Activate()
-        end
-    end
-end)
-
--- Auto Grab Gun Loop
+-- Auto Grab Gun Loop (Düzeltildi)
 task.spawn(function()
     while true do
         task.wait(0.2)
         if Toggles.AutoGrabGun and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local gunDrop = GetDroppedGun()
-            if gunDrop then
+            local gunCFrame = GetGunCFrame(gunDrop)
+            
+            if gunDrop and gunCFrame then
                 local hrp = LocalPlayer.Character.HumanoidRootPart
                 local oldCFrame = hrp.CFrame
-                local gunPos = gunDrop:IsA("BasePart") and gunDrop.CFrame or gunDrop.Handle.CFrame
                 
-                local tween = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = gunPos})
-                tween:Play()
-                tween.Completed:Wait()
+                hrp.CFrame = gunCFrame
                 task.wait(0.2)
                 hrp.CFrame = oldCFrame
             end
@@ -447,12 +424,80 @@ task.spawn(function()
     end
 end)
 
--- --- TAB 3: TELEPORTS & UTILITIES ---
-local TeleportTab = Window:Tab({ Title = "Teleports & Utilities", Icon = "map-pin" })
+-- --- TAB 3: LOBBY & MAP TELEPORTS (YENİ SEKME) ---
+local MapTab = Window:Tab({ Title = "Lobby & Map Teleports", Icon = "map" })
 
-TeleportTab:Section({ Title = "Işınlanma Noktaları" })
+MapTab:Section({ Title = "Lobi & Harita Konumları" })
 
-TeleportTab:Button({
+MapTab:Button({
+    Title = "Lobiye Işınlan (Lobby TP)",
+    Desc = "Oyundan çıkıp doğrudan lobiye ışınlanır.",
+    Callback = function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local lobbySpawn = Workspace:FindFirstChild("Lobby") or Workspace:FindFirstChild("LobbySpawn")
+            if lobbySpawn then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = lobbySpawn:GetModelCFrame() or lobbySpawn.CFrame
+            else
+                LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-108, 140, 83)
+            end
+            WindUI:Notify({ Title = "Işınlanıldı", Content = "Lobiye geçiş yapıldı.", Duration = 2 })
+        end
+    end
+})
+
+MapTab:Button({
+    Title = "Aktif Haritaya Işınlan (Map TP)",
+    Desc = "O an oynanan MM2 haritasının ortasına gider.",
+    Callback = function()
+        local activeMap = GetActiveMap()
+        if activeMap and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local spawns = activeMap:FindFirstChild("Spawns")
+            if spawns then
+                local randomSpawn = spawns:GetChildren()[math.random(1, #spawns:GetChildren())]
+                LocalPlayer.Character.HumanoidRootPart.CFrame = randomSpawn.CFrame + Vector3.new(0, 3, 0)
+            else
+                LocalPlayer.Character.HumanoidRootPart.CFrame = activeMap:GetModelCFrame() + Vector3.new(0, 5, 0)
+            end
+            WindUI:Notify({ Title = "Işınlanıldı", Content = "Aktif haritaya geçildi.", Duration = 2 })
+        else
+            WindUI:Notify({ Title = "Hata", Content = "Şu an aktif bir oyun haritası bulunamadı!", Duration = 3 })
+        end
+    end
+})
+
+MapTab:Button({
+    Title = "Haritanın Üstüne Saklan (Roof TP)",
+    Desc = "Haritanın çatısına ışınlanarak katilden kaçar.",
+    Callback = function()
+        local activeMap = GetActiveMap()
+        if activeMap and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = activeMap:GetModelCFrame() + Vector3.new(0, 40, 0)
+        else
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 50, 0)
+            end
+        end
+    end
+})
+
+MapTab:Section({ Title = "Düzeltilmiş Silah Işınlanması" })
+
+MapTab:Button({
+    Title = "Düşen Silahın Üstüne Işınlan (Gun TP)",
+    Desc = "Şerif öldüğünde yerdeki silahın tam tepesine ışınlar.",
+    Callback = function()
+        local gunDrop = GetDroppedGun()
+        local gunCFrame = GetGunCFrame(gunDrop)
+        if gunCFrame and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = gunCFrame + Vector3.new(0, 2, 0)
+            WindUI:Notify({ Title = "Başarılı", Content = "Silaha ışınlanıldı!", Duration = 2 })
+        else
+            WindUI:Notify({ Title = "Hata", Content = "Yerde düşen silah bulunamadı!", Duration = 3 })
+        end
+    end
+})
+
+MapTab:Button({
     Title = "Katilin Arkasına Işınlan",
     Callback = function()
         local murd = GetMurderer()
@@ -462,80 +507,13 @@ TeleportTab:Button({
     end
 })
 
-TeleportTab:Button({
+MapTab:Button({
     Title = "Şerifin Yanına Işınlan",
     Callback = function()
         local sheriff = GetSheriff()
         if sheriff and sheriff.Character and sheriff.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
             LocalPlayer.Character.HumanoidRootPart.CFrame = sheriff.Character.HumanoidRootPart.CFrame * CFrame.new(2, 0, 0)
         end
-    end
-})
-
-TeleportTab:Button({
-    Title = "Düşen Silahın Üstüne Işınlan",
-    Callback = function()
-        local gunDrop = GetDroppedGun()
-        if gunDrop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local gunPos = gunDrop:IsA("BasePart") and gunDrop.CFrame or gunDrop.Handle.CFrame
-            LocalPlayer.Character.HumanoidRootPart.CFrame = gunPos
-        end
-    end
-})
-
-TeleportTab:Section({ Title = "Sunucu & Eğlence" })
-
-TeleportTab:Button({
-    Title = "Farklı Sunucuya Geç (Server Hop)",
-    Desc = "Dolu farklı bir MM2 sunucusuna aktarır.",
-    Callback = function()
-        local PlaceID = game.PlaceId
-        local AllIDs = {}
-        local foundAnything = ""
-        local actualHour = os.date("!*t").hour
-        local Deleted = false
-        
-        local function TPReturnCode()
-            local Site;
-            if foundAnything == "" then
-                Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
-            else
-                Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
-            end
-            if Site.nextPageCursor and Site.nextPageCursor ~= "null" and Site.nextPageCursor ~= nil then
-                foundAnything = Site.nextPageCursor
-            end
-            local num = 0;
-            for i,v in pairs(Site.data) do
-                local Possible = true
-                if tonumber(v.maxPlayers) > tonumber(v.playing) then
-                    for _,ExistingServer in pairs(AllIDs) do
-                        if num ~= 0 then
-                            if tonumber(v.id) == tonumber(ExistingServer) then
-                                Possible = false
-                            end
-                        else
-                            if tonumber(actualHour) ~= tonumber(ExistingServer) then
-                                local delSaved = pcall(function()
-                                    AllIDs = {}
-                                    table.insert(AllIDs, actualHour)
-                                end)
-                            end
-                        end
-                        num = num + 1
-                    end
-                    if Possible == true then
-                        table.insert(AllIDs, v.id)
-                        task.wait()
-                        pcall(function()
-                            TeleportService:TeleportToPlaceInstance(PlaceID, v.id, LocalPlayer)
-                        end)
-                        task.wait(4)
-                    end
-                end
-            end
-        end
-        TPReturnCode()
     end
 })
 
@@ -589,21 +567,62 @@ PlayerTab:Slider({
     end
 })
 
-PlayerTab:Section({ Title = "Işınlanma & Otomasyon" })
+PlayerTab:Section({ Title = "Otomasyon & Sunucu" })
 
 PlayerTab:Button({
-    Title = "Güvenli Bölgeye Işınlan (Safe Zone)",
-    Desc = "Haritanın çok yukarısına ışınlanarak saklanır.",
+    Title = "Farklı Sunucuya Geç (Server Hop)",
     Callback = function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 200, 0)
+        local PlaceID = game.PlaceId
+        local AllIDs = {}
+        local foundAnything = ""
+        local actualHour = os.date("!*t").hour
+        
+        local function TPReturnCode()
+            local Site;
+            if foundAnything == "" then
+                Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
+            else
+                Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
+            end
+            if Site.nextPageCursor and Site.nextPageCursor ~= "null" and Site.nextPageCursor ~= nil then
+                foundAnything = Site.nextPageCursor
+            end
+            local num = 0;
+            for i,v in pairs(Site.data) do
+                local Possible = true
+                if tonumber(v.maxPlayers) > tonumber(v.playing) then
+                    for _,ExistingServer in pairs(AllIDs) do
+                        if num ~= 0 then
+                            if tonumber(v.id) == tonumber(ExistingServer) then
+                                Possible = false
+                            end
+                        else
+                            if tonumber(actualHour) ~= tonumber(ExistingServer) then
+                                local delSaved = pcall(function()
+                                    AllIDs = {}
+                                    table.insert(AllIDs, actualHour)
+                                end)
+                            end
+                        end
+                        num = num + 1
+                    end
+                    if Possible == true then
+                        table.insert(AllIDs, v.id)
+                        task.wait()
+                        pcall(function()
+                            TeleportService:TeleportToPlaceInstance(PlaceID, v.id, LocalPlayer)
+                        end)
+                        task.wait(4)
+                    end
+                end
+            end
         end
+        TPReturnCode()
     end
 })
 
 PlayerTab:Toggle({
     Title = "Auto Rejoin",
-    Desc = "Bağlantı koptuğunda otomatik tekrar oyuna girer.",
     Value = false,
     Callback = function(state) Toggles.AutoRejoin = state end
 })
@@ -619,7 +638,8 @@ if CoreGui:FindFirstChild("RobloxPromptGui") and CoreGui.RobloxPromptGui:FindFir
 end
 
 WindUI:Notify({
-    Title = "Flex Hub V3 Aktif!",
-    Content = "Şerif Teleport-Kill ve Anti-Kill Shield eklendi.",
+    Title = "Flex Hub Düzeltildi!",
+    Content = "Silah tespiti & Lobi/Harita ışınlanmaları eklendi.",
     Duration = 5
 })
+. 
