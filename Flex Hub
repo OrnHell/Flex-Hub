@@ -1,0 +1,625 @@
+-- Flex Hub | Wind UI MM2 Ultimate Script (V3 Final - All Features)
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+
+-- Servisler
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Ayar Değişkenleri
+local Toggles = {
+    RoleESP = false,
+    DroppedGunESP = false,
+    MurdererWarning = false,
+    SilentAim = false,
+    AutoShoot = false,
+    KillAll = false,
+    AutoGrabGun = false,
+    HideKnife = false,
+    Noclip = false,
+    Fly = false,
+    InfiniteJump = false,
+    AutoRejoin = false,
+    AutoTeleportKill = false,
+    AntiKill = false,
+    KnifeAimbot = false
+}
+
+local FlySpeed = 50
+local MurdererWarned = false
+
+-- Ana Pencere
+local Window = WindUI:CreateWindow({
+    Title = "Flex Hub | MM2 Ultimate Tool",
+    Icon = "shield-alert",
+    Author = "Flex Hub Dev",
+    Folder = "FlexHubMM2",
+    Size = UDim2.fromOffset(620, 560),
+    Transparent = true,
+    Theme = "Dark",
+})
+
+-- --- YARDIMCI FONKSİYONLAR ---
+local function GetMurderer()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
+                return plr
+            end
+        end
+    end
+    return nil
+end
+
+local function GetSheriff()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            if plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
+                return plr
+            end
+        end
+    end
+    return nil
+end
+
+local function GetDroppedGun()
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if obj.Name == "GunDrop" or (obj:IsA("Tool") and obj.Name == "Gun") then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function FlingPlayer(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local char = LocalPlayer.Character
+    local targetChar = targetPlayer.Character
+    
+    if char and targetChar and char:FindFirstChild("HumanoidRootPart") and targetChar:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        local targetHrp = targetChar.HumanoidRootPart
+        local originalCFrame = hrp.CFrame
+        
+        local timeStarted = tick()
+        while tick() - timeStarted < 1.2 do
+            if not targetChar or not targetHrp.Parent then break end
+            
+            hrp.CFrame = targetHrp.CFrame * CFrame.new(0, 0, 0)
+            hrp.AssemblyAngularVelocity = Vector3.new(99999, 99999, 99999)
+            hrp.Velocity = Vector3.new(99999, 99999, 99999)
+            task.wait()
+        end
+        
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        hrp.Velocity = Vector3.new(0, 0, 0)
+        hrp.CFrame = originalCFrame
+    end
+end
+
+-- --- NOCLIP DÖNGÜSÜ ---
+RunService.Stepped:Connect(function()
+    if (Toggles.Noclip or Toggles.Fly) and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- --- INFINITE JUMP ---
+UserInputService.JumpRequest:Connect(function()
+    if Toggles.InfiniteJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end)
+
+-- --- FLY MANTIĞI ---
+local bodyGyro, bodyVelocity
+RunService.RenderStepped:Connect(function()
+    if Toggles.Fly and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local camera = Workspace.CurrentCamera
+        
+        if not bodyGyro then
+            bodyGyro = Instance.new("BodyGyro", hrp)
+            bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            bodyGyro.P = 9e4
+        end
+        if not bodyVelocity then
+            bodyVelocity = Instance.new("BodyVelocity", hrp)
+            bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        end
+        
+        bodyGyro.CFrame = camera.CFrame
+        local moveDir = Vector3.new()
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+        
+        bodyVelocity.Velocity = moveDir * FlySpeed
+    else
+        if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+        if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+    end
+end)
+
+-- --- TAB 1: MAIN & ESP ---
+local MainTab = Window:Tab({ Title = "Main & ESP", Icon = "eye" })
+
+MainTab:Section({ Title = "Görüş & ESP Taraması" })
+
+MainTab:Toggle({
+    Title = "Rol ESP (Katil / Şerif / Masum)",
+    Desc = "Oyuncuların rollerini duvar arkasından renkli gösterir.",
+    Value = false,
+    Callback = function(state)
+        Toggles.RoleESP = state
+        if not state then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr.Character and plr.Character:FindFirstChild("FlexHighlight") then
+                    plr.Character.FlexHighlight:Destroy()
+                end
+            end
+        end
+    end
+})
+
+MainTab:Toggle({
+    Title = "Düşen Silah ESP'si (Dropped Gun)",
+    Desc = "Şerif öldüğünde yere düşen silahı vurgular.",
+    Value = false,
+    Callback = function(state) Toggles.DroppedGunESP = state end
+})
+
+MainTab:Toggle({
+    Title = "Katil Yakınlık Uyarısı",
+    Desc = "Katil 25 stud yakınınıza geldiğinde ekran uyarısı verir.",
+    Value = false,
+    Callback = function(state) Toggles.MurdererWarning = state end
+})
+
+MainTab:Toggle({
+    Title = "Otomatik Katil Savar (Anti-Kill Shield)",
+    Desc = "Katil 10 stud yaklaştığında seni otomatik fırlatarak kaçırır.",
+    Value = false,
+    Callback = function(state) Toggles.AntiKill = state end
+})
+
+-- ESP, Uyarı & Anti-Kill Döngüsü
+RunService.RenderStepped:Connect(function()
+    if Toggles.RoleESP then
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local char = plr.Character
+                local hl = char:FindFirstChild("FlexHighlight") or Instance.new("Highlight")
+                hl.Name = "FlexHighlight"
+                hl.Parent = char
+
+                if char:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
+                    hl.FillColor = Color3.fromRGB(255, 0, 0)
+                elseif char:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
+                    hl.FillColor = Color3.fromRGB(0, 120, 255)
+                else
+                    hl.FillColor = Color3.fromRGB(0, 255, 100)
+                end
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.FillTransparency = 0.4
+            end
+        end
+    end
+
+    if Toggles.DroppedGunESP then
+        local gunDrop = GetDroppedGun()
+        if gunDrop then
+            local hl = gunDrop:FindFirstChild("GunHighlight") or Instance.new("Highlight")
+            hl.Name = "GunHighlight"
+            hl.Parent = gunDrop
+            hl.FillColor = Color3.fromRGB(255, 255, 0)
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.FillTransparency = 0.2
+        end
+    end
+
+    local murd = GetMurderer()
+    if murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local dist = (LocalPlayer.Character.HumanoidRootPart.Position - murd.Character.HumanoidRootPart.Position).Magnitude
+        
+        if Toggles.MurdererWarning then
+            if dist <= 25 and not MurdererWarned then
+                MurdererWarned = true
+                WindUI:Notify({ Title = "DİKKAT!", Content = "Katil sana çok yakın! (" .. math.floor(dist) .. "m)", Duration = 3 })
+            elseif dist > 25 then
+                MurdererWarned = false
+            end
+        end
+        
+        if Toggles.AntiKill and dist <= 10 then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 25, 0)
+        end
+    end
+end)
+
+-- --- TAB 2: COMBAT & AIM ---
+local CombatTab = Window:Tab({ Title = "Combat & Aim", Icon = "crosshair" })
+
+CombatTab:Section({ Title = "Şerif Teleport-Kill (Özel Modül)" })
+
+CombatTab:Button({
+    Title = "Katile Işınlan -> Vur -> Eski Yerine Dön",
+    Desc = "Katilin arkasına geçer, silahı sıkar ve anında ilk konumuna döner.",
+    Callback = function()
+        local murd = GetMurderer()
+        local char = LocalPlayer.Character
+        if murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") and char and char:FindFirstChild("HumanoidRootPart") then
+            local gun = char:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
+            if gun then
+                if gun.Parent == LocalPlayer.Backpack then gun.Parent = char end
+                local hrp = char.HumanoidRootPart
+                local originalCFrame = hrp.CFrame
+                
+                hrp.CFrame = murd.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+                task.wait(0.05)
+                gun:Activate()
+                task.wait(0.05)
+                hrp.CFrame = originalCFrame
+                WindUI:Notify({ Title = "Başarılı!", Content = "Katil vuruldu ve eski konumuna dönüldü.", Duration = 2 })
+            else
+                WindUI:Notify({ Title = "Hata", Content = "Elinde/Çantanda Silah Bulunamadı!", Duration = 3 })
+            end
+        end
+    end
+})
+
+CombatTab:Toggle({
+    Title = "Otomatik Şerif Teleport-Kill",
+    Desc = "Şerif olduğun an Katile ışınlanıp vurur ve geri döner.",
+    Value = false,
+    Callback = function(state) Toggles.AutoTeleportKill = state end
+})
+
+CombatTab:Section({ Title = "Şerif & Silah Yardımcısı" })
+
+CombatTab:Toggle({
+    Title = "Katil Aimbot (Auto Lock)",
+    Desc = "Şerif olduğunuzda kamerayı Katil'e kilitler.",
+    Value = false,
+    Callback = function(state) Toggles.SilentAim = state end
+})
+
+CombatTab:Toggle({
+    Title = "Katile Otomatik Sıkma (Auto Shoot)",
+    Desc = "Katil görüş alanındayken otomatik ateş eder.",
+    Value = false,
+    Callback = function(state) Toggles.AutoShoot = state end
+})
+
+CombatTab:Toggle({
+    Title = "Düşen Silahı Otomatik Al (Auto Grab)",
+    Desc = "Şerif öldüğünde yere düşen silahı anında kapar.",
+    Value = false,
+    Callback = function(state) Toggles.AutoGrabGun = state end
+})
+
+CombatTab:Section({ Title = "Katil Modülleri" })
+
+CombatTab:Toggle({
+    Title = "Bıçak Aimbot (Throw Lock)",
+    Desc = "Bıçağı fırlattığında havada en yakındaki oyuncuya yönlendirir.",
+    Value = false,
+    Callback = function(state) Toggles.KnifeAimbot = state end
+})
+
+CombatTab:Toggle({
+    Title = "Katil Otomatik Herkesi Öldür (Kill All)",
+    Desc = "Tüm oyuncuların arkasına ışınlanıp bıçak saplar.",
+    Value = false,
+    Callback = function(state) Toggles.KillAll = state end
+})
+
+CombatTab:Toggle({
+    Title = "Bıçağı Gizle (Hide Knife)",
+    Desc = "Elinizdeki bıçağı Masum gibi görünmek için gizler.",
+    Value = false,
+    Callback = function(state)
+        Toggles.HideKnife = state
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Knife") then
+            LocalPlayer.Character.Knife.Handle.Transparency = state and 1 or 0
+        end
+    end
+})
+
+CombatTab:Section({ Title = "Fling Modülleri" })
+
+CombatTab:Button({
+    Title = "Katili Fırlat (Fling Murderer)",
+    Callback = function()
+        local murd = GetMurderer()
+        if murd then FlingPlayer(murd) end
+    end
+})
+
+CombatTab:Button({
+    Title = "Herkesi Fırlat (Fling All)",
+    Callback = function()
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                FlingPlayer(plr)
+                task.wait(0.2)
+            end
+        end
+    end
+})
+
+-- Auto Teleport-Kill Loop
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if Toggles.AutoTeleportKill then
+            local char = LocalPlayer.Character
+            local murd = GetMurderer()
+            if char and char:FindFirstChild("HumanoidRootPart") and murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") then
+                local gun = char:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
+                if gun then
+                    if gun.Parent == LocalPlayer.Backpack then gun.Parent = char end
+                    local hrp = char.HumanoidRootPart
+                    local originalCFrame = hrp.CFrame
+                    
+                    hrp.CFrame = murd.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+                    task.wait(0.05)
+                    gun:Activate()
+                    task.wait(0.05)
+                    hrp.CFrame = originalCFrame
+                    Toggles.AutoTeleportKill = false
+                    task.wait(1)
+                end
+            end
+        end
+    end
+end)
+
+-- Aimbot Loop
+RunService.RenderStepped:Connect(function()
+    local murd = GetMurderer()
+    if murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") then
+        if Toggles.SilentAim then
+            Workspace.CurrentCamera.CFrame = CFrame.new(Workspace.CurrentCamera.CFrame.Position, murd.Character.HumanoidRootPart.Position)
+        end
+        if Toggles.AutoShoot and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Gun") then
+            LocalPlayer.Character.Gun:Activate()
+        end
+    end
+end)
+
+-- Auto Grab Gun Loop
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if Toggles.AutoGrabGun and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local gunDrop = GetDroppedGun()
+            if gunDrop then
+                local hrp = LocalPlayer.Character.HumanoidRootPart
+                local oldCFrame = hrp.CFrame
+                local gunPos = gunDrop:IsA("BasePart") and gunDrop.CFrame or gunDrop.Handle.CFrame
+                
+                local tween = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {CFrame = gunPos})
+                tween:Play()
+                tween.Completed:Wait()
+                task.wait(0.2)
+                hrp.CFrame = oldCFrame
+            end
+        end
+    end
+end)
+
+-- Kill All Loop
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if Toggles.KillAll and LocalPlayer.Character then
+            local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
+            if knife then
+                if knife.Parent == LocalPlayer.Backpack then knife.Parent = LocalPlayer.Character end
+                for _, target in pairs(Players:GetPlayers()) do
+                    if target ~= LocalPlayer and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                        local hum = target.Character:FindFirstChild("Humanoid")
+                        if hum and hum.Health > 0 then
+                            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                hrp.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 1.5)
+                                knife:Activate()
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- --- TAB 3: TELEPORTS & UTILITIES ---
+local TeleportTab = Window:Tab({ Title = "Teleports & Utilities", Icon = "map-pin" })
+
+TeleportTab:Section({ Title = "Işınlanma Noktaları" })
+
+TeleportTab:Button({
+    Title = "Katilin Arkasına Işınlan",
+    Callback = function()
+        local murd = GetMurderer()
+        if murd and murd.Character and murd.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = murd.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+        end
+    end
+})
+
+TeleportTab:Button({
+    Title = "Şerifin Yanına Işınlan",
+    Callback = function()
+        local sheriff = GetSheriff()
+        if sheriff and sheriff.Character and sheriff.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = sheriff.Character.HumanoidRootPart.CFrame * CFrame.new(2, 0, 0)
+        end
+    end
+})
+
+TeleportTab:Button({
+    Title = "Düşen Silahın Üstüne Işınlan",
+    Callback = function()
+        local gunDrop = GetDroppedGun()
+        if gunDrop and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local gunPos = gunDrop:IsA("BasePart") and gunDrop.CFrame or gunDrop.Handle.CFrame
+            LocalPlayer.Character.HumanoidRootPart.CFrame = gunPos
+        end
+    end
+})
+
+TeleportTab:Section({ Title = "Sunucu & Eğlence" })
+
+TeleportTab:Button({
+    Title = "Farklı Sunucuya Geç (Server Hop)",
+    Desc = "Dolu farklı bir MM2 sunucusuna aktarır.",
+    Callback = function()
+        local PlaceID = game.PlaceId
+        local AllIDs = {}
+        local foundAnything = ""
+        local actualHour = os.date("!*t").hour
+        local Deleted = false
+        
+        local function TPReturnCode()
+            local Site;
+            if foundAnything == "" then
+                Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100'))
+            else
+                Site = game.HttpService:JSONDecode(game:HttpGet('https://games.roblox.com/v1/games/' .. PlaceID .. '/servers/Public?sortOrder=Asc&limit=100&cursor=' .. foundAnything))
+            end
+            if Site.nextPageCursor and Site.nextPageCursor ~= "null" and Site.nextPageCursor ~= nil then
+                foundAnything = Site.nextPageCursor
+            end
+            local num = 0;
+            for i,v in pairs(Site.data) do
+                local Possible = true
+                if tonumber(v.maxPlayers) > tonumber(v.playing) then
+                    for _,ExistingServer in pairs(AllIDs) do
+                        if num ~= 0 then
+                            if tonumber(v.id) == tonumber(ExistingServer) then
+                                Possible = false
+                            end
+                        else
+                            if tonumber(actualHour) ~= tonumber(ExistingServer) then
+                                local delSaved = pcall(function()
+                                    AllIDs = {}
+                                    table.insert(AllIDs, actualHour)
+                                end)
+                            end
+                        end
+                        num = num + 1
+                    end
+                    if Possible == true then
+                        table.insert(AllIDs, v.id)
+                        task.wait()
+                        pcall(function()
+                            TeleportService:TeleportToPlaceInstance(PlaceID, v.id, LocalPlayer)
+                        end)
+                        task.wait(4)
+                    end
+                end
+            end
+        end
+        TPReturnCode()
+    end
+})
+
+-- --- TAB 4: PLAYER MODS & SETTINGS ---
+local PlayerTab = Window:Tab({ Title = "Player & UI Settings", Icon = "user" })
+
+PlayerTab:Section({ Title = "Arayüz Renk & Tema Ayarları" })
+
+PlayerTab:Dropdown({
+    Title = "Menü Teması Değiştir",
+    Desc = "WindUI kütüphanesinin renk temasını değiştirir.",
+    Values = { "Dark", "Light", "Rose", "Aqua", "Amethyst", "Amber", "Emerald", "Midnight" },
+    Default = "Dark",
+    Callback = function(themeName)
+        if WindUI and WindUI.SetTheme then
+            WindUI:SetTheme(themeName)
+        end
+    end
+})
+
+PlayerTab:Section({ Title = "Karakter Hileleri" })
+
+PlayerTab:Toggle({
+    Title = "Uçma Modu (Fly)",
+    Desc = "Karakterinizi serbestçe uçurur (WASD + Space/Shift).",
+    Value = false,
+    Callback = function(state) Toggles.Fly = state end
+})
+
+PlayerTab:Toggle({
+    Title = "Manuel Duvardan Geçme (Noclip)",
+    Desc = "Tüm duvarların içinden geçmenizi sağlar.",
+    Value = false,
+    Callback = function(state) Toggles.Noclip = state end
+})
+
+PlayerTab:Toggle({
+    Title = "Sonsuz Zıplama (Infinite Jump)",
+    Desc = "Havada durmadan zıplamanızı sağlar.",
+    Value = false,
+    Callback = function(state) Toggles.InfiniteJump = state end
+})
+
+PlayerTab:Slider({
+    Title = "Yürüme Hızı (WalkSpeed)",
+    Min = 16, Max = 100, Default = 16,
+    Callback = function(val)
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = val
+        end
+    end
+})
+
+PlayerTab:Section({ Title = "Işınlanma & Otomasyon" })
+
+PlayerTab:Button({
+    Title = "Güvenli Bölgeye Işınlan (Safe Zone)",
+    Desc = "Haritanın çok yukarısına ışınlanarak saklanır.",
+    Callback = function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 200, 0)
+        end
+    end
+})
+
+PlayerTab:Toggle({
+    Title = "Auto Rejoin",
+    Desc = "Bağlantı koptuğunda otomatik tekrar oyuna girer.",
+    Value = false,
+    Callback = function(state) Toggles.AutoRejoin = state end
+})
+
+-- Auto Rejoin Event
+local CoreGui = game:GetService("CoreGui")
+if CoreGui:FindFirstChild("RobloxPromptGui") and CoreGui.RobloxPromptGui:FindFirstChild("promptOverlay") then
+    CoreGui.RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+        if Toggles.AutoRejoin and child.Name == "ErrorPrompt" then
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end
+    end)
+end
+
+WindUI:Notify({
+    Title = "Flex Hub V3 Aktif!",
+    Content = "Şerif Teleport-Kill ve Anti-Kill Shield eklendi.",
+    Duration = 5
+})
